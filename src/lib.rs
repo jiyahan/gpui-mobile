@@ -352,6 +352,9 @@ pub mod ios;
 #[cfg(target_os = "android")]
 pub mod android;
 
+#[cfg(target_env = "ohos")]
+pub mod ohos;
+
 // ── public re-exports ────────────────────────────────────────────────────────
 
 #[cfg(target_os = "ios")]

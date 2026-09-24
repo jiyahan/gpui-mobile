@@ -117,6 +117,12 @@ gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.6" }
 rustc-hash = "2"
 uuid       = { version = "1", features = ["v5"] }
 
+# ── OpenHarmony ───────────────────────────────────────────────────────────────
+
+[target.'cfg(target_env = "ohos")'.dependencies]
+gpui_wgpu_ohos = { package = "gpui-pre-wgpu", version = "=0.3.6", path = "vendor/gpui-pre-wgpu" }
+uuid = "1"
+
 # ── dev ──────────────────────────────────────────────────────────────────────
 
 [dev-dependencies]

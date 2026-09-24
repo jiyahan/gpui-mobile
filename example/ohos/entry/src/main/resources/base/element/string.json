@@ -1,0 +1,6 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "GPUI surface probe" },
+    { "name": "ability_label", "value": "GPUI OHOS Probe" }
+  ]
+}

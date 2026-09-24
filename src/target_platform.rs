@@ -13,6 +13,8 @@
 pub enum TargetPlatform {
     /// Android (NDK / JNI).
     Android,
+    /// OpenHarmony (ArkUI / XComponent).
+    Ohos,
     /// iOS (UIKit / Metal).
     IOS,
     /// macOS (AppKit / Metal).
@@ -26,9 +28,9 @@ pub enum TargetPlatform {
 }
 
 impl TargetPlatform {
-    /// Returns `true` if this is a mobile platform (Android or iOS).
+    /// Returns `true` if this is a mobile platform (Android, OHOS, or iOS).
     pub fn is_mobile(self) -> bool {
-        matches!(self, Self::Android | Self::IOS)
+        matches!(self, Self::Android | Self::Ohos | Self::IOS)
     }
 
     /// Returns `true` if this is a desktop platform (macOS, Linux, or Windows).
@@ -39,6 +41,11 @@ impl TargetPlatform {
     /// Returns `true` if this is Android.
     pub fn is_android(self) -> bool {
         self == Self::Android
+    }
+
+    /// Returns `true` if this is OpenHarmony.
+    pub fn is_ohos(self) -> bool {
+        self == Self::Ohos
     }
 
     /// Returns `true` if this is iOS.
@@ -76,6 +83,7 @@ impl std::fmt::Display for TargetPlatform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Android => write!(f, "Android"),
+            Self::Ohos => write!(f, "OHOS"),
             Self::IOS => write!(f, "iOS"),
             Self::MacOS => write!(f, "macOS"),
             Self::Linux => write!(f, "Linux"),
@@ -100,6 +108,10 @@ impl std::fmt::Display for TargetPlatform {
 /// }
 /// ```
 pub fn target_platform() -> TargetPlatform {
+    #[cfg(target_env = "ohos")]
+    {
+        return TargetPlatform::Ohos;
+    }
     #[cfg(target_os = "android")]
     {
         TargetPlatform::Android
@@ -112,7 +124,7 @@ pub fn target_platform() -> TargetPlatform {
     {
         return TargetPlatform::MacOS;
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
     {
         return TargetPlatform::Linux;
     }
@@ -146,6 +158,10 @@ pub fn target_platform() -> TargetPlatform {
 /// This is a `const` value resolved at compile time that can be used in
 /// `const` contexts where the `target_platform()` function cannot.
 pub const DEFAULT_PLATFORM: TargetPlatform = {
+    #[cfg(target_env = "ohos")]
+    {
+        TargetPlatform::Ohos
+    }
     #[cfg(target_os = "android")]
     {
         TargetPlatform::Android
@@ -158,7 +174,7 @@ pub const DEFAULT_PLATFORM: TargetPlatform = {
     {
         TargetPlatform::MacOS
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
     {
         TargetPlatform::Linux
     }

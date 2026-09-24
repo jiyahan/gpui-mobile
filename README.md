@@ -89,6 +89,12 @@ cd android/gradle && ./gradlew assembleDebug
 | Android (arm64) | ✅ | API 26+ | Vulkan (preferred), GL ES 3.0 |
 | Android (armv7/x86_64) | ⚠️ Untested | API 26+ | Vulkan / GL ES |
 
+An experimental [OHOS GPUI view probe](example/ohos/README.md) builds an
+arm64 HAP with a minimal `gpui::Platform` and runs the existing Counter and
+About screens. Their layout, tab switching, touch input, emoji rendering, and
+bottom gesture area have been checked on one OHOS device. The Android/iOS
+multi-screen router is not yet connected.
+
 ## Screenshots
 
 Running on a Motorola Edge 50 Pro (Android, Vulkan):

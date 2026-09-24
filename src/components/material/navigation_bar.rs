@@ -107,6 +107,15 @@ pub struct NavigationBarBuilder {
 }
 
 impl NavigationBarBuilder {
+    /// Background color used by the bar, including any host-managed safe area.
+    pub fn surface_color(dark: bool) -> u32 {
+        if dark {
+            0x211f26
+        } else {
+            0xf3edf7
+        }
+    }
+
     /// Create a new navigation bar builder.
     ///
     /// - `dark` — whether to use dark-mode colours (MD3 colour system)
@@ -153,7 +162,7 @@ impl NavigationBarBuilder {
     /// a child of a GPUI div.
     pub fn build(self) -> impl IntoElement {
         let dark = self.dark;
-        let surface = if dark { 0x211f26_u32 } else { 0xf3edf7 };
+        let surface = Self::surface_color(dark);
         let active_indicator = if dark { 0x4a4458_u32 } else { 0xe8def8 };
         let active_color = if dark { 0xe6e1e5_u32 } else { 0x1c1b1f };
         let inactive_color = if dark { 0x938f99_u32 } else { 0x49454f };
