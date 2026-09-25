@@ -1,4 +1,10 @@
-use std::{cell::RefCell, ffi::c_void, ptr::NonNull, rc::Rc, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    ffi::c_void,
+    ptr::NonNull,
+    rc::Rc,
+    sync::Arc,
+};
 
 use futures::channel::oneshot;
 use gpui::{
@@ -22,6 +28,7 @@ pub(super) struct WindowState {
     pub(super) height: u32,
     pub(super) scale: f32,
     pub(super) request_frame: Option<Box<dyn FnMut(RequestFrameOptions)>>,
+    pub(super) frame_queued: Rc<Cell<bool>>,
     pub(super) input: Option<Box<dyn FnMut(PlatformInput) -> DispatchEventResult>>,
     pub(super) resize: Option<Box<dyn FnMut(gpui::Size<gpui::Pixels>, f32)>>,
     input_handler: Option<PlatformInputHandler>,
@@ -36,6 +43,7 @@ impl WindowState {
             height: 0,
             scale: 1.0,
             request_frame: None,
+            frame_queued: Rc::new(Cell::new(false)),
             input: None,
             resize: None,
             input_handler: None,
@@ -182,13 +190,14 @@ impl PlatformWindow for OhosPlatformWindow {
 
     fn frame_waker(&self) -> Option<Rc<dyn Fn()>> {
         let sender = self.sender.clone();
+        let queued = self.state.borrow().frame_queued.clone();
         Some(Rc::new(move || {
-            let _ = sender.send(Command::Frame(false));
+            queue_frame(&sender, &queued);
         }))
     }
 
     fn schedule_frame(&self) {
-        let _ = self.sender.send(Command::Frame(false));
+        queue_frame(&self.sender, &self.state.borrow().frame_queued);
     }
 
     fn draw(&self, scene: &gpui::Scene) {
@@ -218,4 +227,10 @@ impl PlatformWindow for OhosPlatformWindow {
             .map(WgpuRenderer::gpu_specs)
     }
     fn update_ime_position(&self, _bounds: gpui::Bounds<gpui::Pixels>) {}
+}
+
+fn queue_frame(sender: &std::sync::mpsc::Sender<Command>, queued: &Cell<bool>) {
+    if !queued.replace(true) && sender.send(Command::Frame(false)).is_err() {
+        queued.set(false);
+    }
 }

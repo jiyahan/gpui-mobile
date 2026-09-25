@@ -11,6 +11,7 @@ use std::{
     ptr::{self, NonNull},
     rc::Rc,
     sync::{mpsc, OnceLock},
+    time::{Duration, Instant},
 };
 
 use gpui::{
@@ -29,6 +30,8 @@ mod view;
 mod window;
 
 use crate::components::material::NavigationBarBuilder;
+use crate::fling_guard::FlingGuard;
+use crate::frame_pacer::FramePacer;
 use platform::OhosPlatform;
 use view::Router;
 use window::WindowState;
@@ -112,6 +115,8 @@ struct RenderState {
     window: Rc<RefCell<WindowState>>,
     application: Option<ApplicationHandle>,
     touch_id: u64,
+    active_touch_id: Option<TouchId>,
+    fling_guard: FlingGuard,
 }
 
 impl RenderState {
@@ -121,6 +126,8 @@ impl RenderState {
             window: Rc::new(RefCell::new(WindowState::new())),
             application: None,
             touch_id: 0,
+            active_touch_id: None,
+            fling_guard: FlingGuard::new(),
         }
     }
 
@@ -211,32 +218,53 @@ impl RenderState {
 
     fn touch(&mut self, phase: u32, x: f32, y: f32) {
         let phase = match phase {
-            0 => {
-                self.touch_id += 1;
-                TouchPhase::Started
-            }
+            0 => TouchPhase::Started,
             1 => TouchPhase::Ended,
             2 => TouchPhase::Moved,
             3 => TouchPhase::Cancelled,
             _ => return,
         };
+        let id = if phase == TouchPhase::Started {
+            self.touch_id += 1;
+            let id = TouchId(self.touch_id);
+            self.active_touch_id = Some(id);
+            id
+        } else if let Some(id) = self.active_touch_id {
+            id
+        } else {
+            return;
+        };
         let scale = self.window.borrow().scale;
-        let event = PlatformInput::Touch(TouchEvent {
-            id: TouchId(self.touch_id),
+        let event = TouchEvent {
+            id,
             phase,
             position: gpui::point(gpui::px(x / scale), gpui::px(y / scale)),
             predicted_position: None,
             force: None,
-        });
+        };
         let mut callback = self.window.borrow_mut().input.take();
         if let Some(callback) = callback.as_mut() {
-            callback(event);
+            self.fling_guard.relay(
+                event,
+                || {
+                    self.touch_id += 1;
+                    TouchId(self.touch_id)
+                },
+                |event| {
+                    callback(PlatformInput::Touch(event));
+                },
+            );
         }
         self.window.borrow_mut().input = callback;
+        if matches!(phase, TouchPhase::Ended | TouchPhase::Cancelled) {
+            self.active_touch_id = None;
+        }
     }
 
     fn destroy(&mut self) {
         self.application = None;
+        self.active_touch_id = None;
+        self.fling_guard = FlingGuard::new();
         if let Some(mut renderer) = self.window.borrow_mut().renderer.take() {
             renderer.destroy();
         }
@@ -253,45 +281,77 @@ fn sender() -> &'static mpsc::Sender<Command> {
             .name("gpui-ohos-render".into())
             .spawn(move || {
                 let mut state = RenderState::new();
-                for command in receiver {
-                    match command {
-                        Command::Surface {
-                            window,
-                            width,
-                            height,
-                            scale,
-                            reply,
-                        } => {
-                            let result = catch_unwind(AssertUnwindSafe(|| {
-                                state.surface(window, width, height, scale)
-                            }));
-                            match result {
-                                Ok(result) => {
-                                    let _ = reply.send(result);
-                                }
-                                Err(payload) => {
-                                    let message = payload
-                                        .downcast_ref::<String>()
-                                        .cloned()
-                                        .or_else(|| {
-                                            payload.downcast_ref::<&str>().map(|s| s.to_string())
-                                        })
-                                        .unwrap_or_else(|| "non-string panic".to_string());
-                                    let _ =
-                                        reply.send(Err(format!("OHOS render panic: {message}")));
-                                    break;
+                // GPUI can request the next animation frame through both
+                // schedule_frame and frame_waker. Coalesce those requests and
+                // pace the render thread instead of filling its command queue
+                // with frames while a touch fling is active.
+                const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
+                let mut pacer = FramePacer::with_clock(FRAME_INTERVAL);
+                loop {
+                    let command = match pacer.poll_timeout(Instant::now()) {
+                        Some(timeout) => match receiver.recv_timeout(timeout) {
+                            Ok(command) => Some(command),
+                            Err(mpsc::RecvTimeoutError::Timeout) => None,
+                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        },
+                        None => match receiver.recv() {
+                            Ok(command) => Some(command),
+                            Err(_) => break,
+                        },
+                    };
+                    if let Some(command) = command {
+                        match command {
+                            Command::Surface {
+                                window,
+                                width,
+                                height,
+                                scale,
+                                reply,
+                            } => {
+                                let result = catch_unwind(AssertUnwindSafe(|| {
+                                    state.surface(window, width, height, scale)
+                                }));
+                                match result {
+                                    Ok(result) => {
+                                        let _ = reply.send(result);
+                                    }
+                                    Err(payload) => {
+                                        let message = payload
+                                            .downcast_ref::<String>()
+                                            .cloned()
+                                            .or_else(|| {
+                                                payload
+                                                    .downcast_ref::<&str>()
+                                                    .map(|s| s.to_string())
+                                            })
+                                            .unwrap_or_else(|| "non-string panic".to_string());
+                                        let _ = reply
+                                            .send(Err(format!("OHOS render panic: {message}")));
+                                        break;
+                                    }
                                 }
                             }
+                            Command::Touch { phase, x, y } => state.touch(phase, x, y),
+                            Command::Frame(force) => {
+                                state.window.borrow().frame_queued.set(false);
+                                if force {
+                                    state.frame(true);
+                                } else {
+                                    pacer.schedule(Instant::now());
+                                }
+                            }
+                            Command::Task(runnable) => {
+                                runnable.run();
+                            }
+                            Command::Destroy(reply) => {
+                                state.destroy();
+                                pacer = FramePacer::with_clock(FRAME_INTERVAL);
+                                let _ = reply.send(());
+                            }
                         }
-                        Command::Touch { phase, x, y } => state.touch(phase, x, y),
-                        Command::Frame(force) => state.frame(force),
-                        Command::Task(runnable) => {
-                            runnable.run();
-                        }
-                        Command::Destroy(reply) => {
-                            state.destroy();
-                            let _ = reply.send(());
-                        }
+                    }
+                    if pacer.take_frame(Instant::now()) {
+                        state.frame(false);
                     }
                 }
                 state.destroy();
