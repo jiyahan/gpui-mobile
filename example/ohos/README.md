@@ -51,5 +51,7 @@ Overlapping a held finger with an HDC tap exposed a touch-ID collision: both
 sources reported device 0, touch 0. The bridge now cancels the old contact on
 a duplicate start. In a portrait device retest, the overlapping tap did not
 switch tabs, but after the finger was released, a new About tap succeeded
-without restarting the app. The same overlap scenario has not been retested
-in landscape.
+without restarting the app. The same scenario was retested on the signed HAP
+in landscape at 2760×1256: the HDC tap did not switch tabs while a physical
+finger was held; after release, an About tap succeeded, and returning to
+Counter preserved count 1. This was one device run, not a wider input test.
