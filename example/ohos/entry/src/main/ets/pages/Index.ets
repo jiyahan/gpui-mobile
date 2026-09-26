@@ -1,6 +1,12 @@
+import native from 'libentry.so';
+
 @Entry
 @Component
 struct Index {
+  onBackPress(): boolean {
+    return native.dispatchBack();
+  }
+
   build() {
     Column() {
       XComponent({ id: 'gpui-probe', type: 'surface', libraryname: 'entry' })

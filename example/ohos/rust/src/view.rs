@@ -5,8 +5,8 @@
 //! state these two screens need.
 
 use gpui::{
-    div, px, rgb, Context, Font, FontFallbacks, InteractiveElement, IntoElement, ParentElement,
-    Render, StatefulInteractiveElement, Styled, Window,
+    div, px, rgb, Context, FocusHandle, Font, FontFallbacks, InteractiveElement, IntoElement,
+    ParentElement, Render, StatefulInteractiveElement, Styled, Window,
 };
 use gpui_mobile::components::material::NavigationBarBuilder;
 use gpui_mobile::{StatusBarContentStyle, SystemChromeStyle};
@@ -48,14 +48,18 @@ pub(crate) struct Router {
     pub(super) tap_count: u32,
     pub(super) dark_mode: bool,
     page: Page,
+    focus_handle: FocusHandle,
 }
 
 impl Router {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let focus_handle = cx.focus_handle();
+        window.focus(&focus_handle, cx);
         Self {
             tap_count: 0,
             dark_mode: DEFAULT_DARK_MODE,
             page: Page::Counter,
+            focus_handle,
         }
     }
 }
@@ -70,6 +74,15 @@ impl Render for Router {
             navigation_bar_color: Some(navigation_color),
         });
         div()
+            .id("ohos-root")
+            .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
+                if event.keystroke.key == "escape" && this.page == Page::About {
+                    this.page = Page::Counter;
+                    window.prevent_default();
+                    cx.notify();
+                }
+            }))
             .flex()
             .flex_col()
             .size_full()

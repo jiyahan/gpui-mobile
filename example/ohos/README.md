@@ -29,6 +29,8 @@ The Android/iOS multi-screen router is not yet connected.
   `+10` then `-` update it from 0 to 10 to 9 and cross the first milestone.
 - About: the tab opens the existing About layout, which scrolls to its footer;
   returning to Counter preserves the count.
+- Back: from About return to Counter without losing the count; from Counter
+  leave the app, then reopen it.
 - Rotate, leave and return: the surface resizes or recreates without a crash
   or blank screen.
 
@@ -83,3 +85,9 @@ light with dark icons. Screenshots confirmed the change; the test style was
 removed before the final HAP build. Counter 1 and the About tab remained
 usable in landscape. Other cutout shapes and the future shared router's theme
 changes remain untested.
+
+On 2026-09-27, the probe routed system Back through GPUI. An injected Back on
+About returned to Counter with count 1; Back on Counter exited to the launcher.
+Reopening the app showed Counter 1 because the process stayed alive. A
+physical edge Back gesture on About also returned to Counter. The callback
+is bounded to 500 ms; shared routes and IME behavior remain pending.

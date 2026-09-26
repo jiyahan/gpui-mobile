@@ -5,8 +5,8 @@ use gpui::{App, AppContext, WindowOptions};
 mod view;
 
 fn open_root(cx: &mut App) -> Result<(), String> {
-    cx.open_window(WindowOptions::default(), |_, cx| {
-        cx.new(|_| view::Router::new())
+    cx.open_window(WindowOptions::default(), |window, cx| {
+        cx.new(|cx| view::Router::new(window, cx))
     })
     .map(|_| ())
     .map_err(|error| error.to_string())

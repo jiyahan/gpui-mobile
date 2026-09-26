@@ -15,6 +15,7 @@ extern "C" bool gpui_ohos_surface_created(void* window, uint32_t width, uint32_t
                                             float scale, char* error_buffer, std::size_t error_capacity);
 extern "C" void gpui_ohos_touch(uint32_t phase, int64_t device_id, int32_t native_id,
                                 float x, float y);
+extern "C" bool gpui_ohos_back();
 extern "C" void gpui_ohos_surface_destroyed();
 extern "C" void gpui_ohos_set_foreground(bool foreground);
 extern "C" void gpui_ohos_set_safe_area(float top, float bottom, float left, float right, float scale);
@@ -117,6 +118,14 @@ napi_value SetForeground(napi_env env, napi_callback_info info) {
                  "UIAbility %{public}s", foreground ? "foreground" : "background");
     napi_value result = nullptr;
     return napi_get_undefined(env, &result) == napi_ok ? result : nullptr;
+}
+
+napi_value DispatchBack(napi_env env, napi_callback_info) {
+    napi_value handled = nullptr;
+    if (napi_get_boolean(env, gpui_ohos_back(), &handled) != napi_ok) {
+        return nullptr;
+    }
+    return handled;
 }
 
 napi_value SetSafeArea(napi_env env, napi_callback_info info) {
@@ -238,12 +247,14 @@ napi_value Init(napi_env env, napi_value exports) {
          napi_default, nullptr},
         {"setForeground", nullptr, SetForeground, nullptr, nullptr, nullptr,
          napi_default, nullptr},
+        {"dispatchBack", nullptr, DispatchBack, nullptr, nullptr, nullptr,
+         napi_default, nullptr},
         {"setSafeArea", nullptr, SetSafeArea, nullptr, nullptr, nullptr,
          napi_default, nullptr},
         {"setChromeCallback", nullptr, SetChromeCallback, nullptr, nullptr, nullptr,
          napi_default, nullptr}
     };
-    if (napi_define_properties(env, exports, 6, properties) != napi_ok) {
+    if (napi_define_properties(env, exports, 7, properties) != napi_ok) {
         return exports;
     }
     napi_value nativeObject = nullptr;

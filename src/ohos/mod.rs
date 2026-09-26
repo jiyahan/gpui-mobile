@@ -16,8 +16,9 @@ use std::{
 };
 
 use gpui::{
-    size, App, Application, ApplicationHandle, DevicePixels, Pixels, PlatformInput, Point,
-    RequestFrameOptions, TouchEvent, TouchId, TouchPhase, WindowVisibility,
+    size, App, Application, ApplicationHandle, DevicePixels, KeyDownEvent, KeyUpEvent, Keystroke,
+    Modifiers, Pixels, PlatformInput, Point, RequestFrameOptions, TouchEvent, TouchId, TouchPhase,
+    WindowVisibility,
 };
 use gpui_wgpu_ohos::{GpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use raw_window_handle::{
@@ -151,6 +152,7 @@ enum Command {
         x: f32,
         y: f32,
     },
+    Back(mpsc::Sender<bool>),
     Frame(bool),
     Task(gpui::RunnableVariant),
     Foreground(bool),
@@ -358,6 +360,31 @@ impl RenderState {
         }
     }
 
+    fn back(&mut self) -> bool {
+        if !self.window.borrow().active {
+            return false;
+        }
+        let mut callback = self.window.borrow_mut().input.take();
+        let handled = if let Some(callback) = callback.as_mut() {
+            let keystroke = Keystroke {
+                key: "escape".into(),
+                key_char: None,
+                modifiers: Modifiers::default(),
+            };
+            let result = callback(PlatformInput::KeyDown(KeyDownEvent {
+                keystroke: keystroke.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            }));
+            callback(PlatformInput::KeyUp(KeyUpEvent { keystroke }));
+            result.default_prevented
+        } else {
+            false
+        };
+        self.window.borrow_mut().input = callback;
+        handled
+    }
+
     fn set_foreground(&mut self, foreground: bool) {
         if self.foreground == foreground {
             return;
@@ -484,6 +511,9 @@ fn sender() -> &'static mpsc::Sender<Command> {
                                 x,
                                 y,
                             } => state.touch(phase, device_id, native_id, x, y),
+                            Command::Back(reply) => {
+                                let _ = reply.send(state.back());
+                            }
                             Command::Frame(force) => {
                                 state.window.borrow().frame_queued.set(false);
                                 if force {
@@ -576,6 +606,18 @@ pub extern "C" fn gpui_ohos_touch(phase: u32, device_id: i64, native_id: i32, x:
         x,
         y,
     });
+}
+
+/// Dispatch the system Back gesture as Escape; return whether GPUI handled it.
+#[no_mangle]
+pub extern "C" fn gpui_ohos_back() -> bool {
+    let (reply, received) = mpsc::channel();
+    if sender().send(Command::Back(reply)).is_err() {
+        return false;
+    }
+    received
+        .recv_timeout(Duration::from_millis(500))
+        .unwrap_or(false)
 }
 
 /// Forward UIAbility foreground/background changes to the GPUI render thread.

@@ -38,16 +38,17 @@ independent units. Do not declare the whole migration complete with blockers.
 | `current_platform()` | Pending; its non-Android/iOS branch panics. | Open an app-owned root view from a host-provided native surface. |
 | `gpui::Platform`, `PlatformWindow`, dispatcher and renderer | Counter/About probe and window lifecycle verified on one device; other trait callbacks remain empty. | Recreate and resize the surface, background/foreground, wake frames and release resources. |
 | `set_system_chrome()`, `safe_area_insets()` | Probe verified on one arm64 phone: app-provided bar colors/content style and full-window insets update in portrait and landscape. | Recheck with the shared router and its theme changes. |
+| System Back / GPUI Escape input | Probe verified on one arm64 phone: About handles Back and Counter delegates to the OS. | Recheck shared routing and IME dismissal when those units land. |
 | `show_keyboard()`, `show_keyboard_with_type()`, `hide_keyboard()`, `keyboard_height()`, `set_keyboard_height()` | No OHOS keyboard host. | Open, change type, reposition content and dismiss the IME. |
 | `set_text_input_callback()`, `dispatch_text_input()`, `TEXT_INPUT_DIRTY` | Shared hooks exist; no OHOS input bridge. | Chinese/English composition, insertion, deletion, selection and redraw. |
 | `PlatformView`, factory, registry and handle | Shared registry exists; no OHOS native view host. | Create, position, resize, hide and dispose a native view. |
 | OHOS C ABI surface create/destroy, touch and system colors | App root registration and existing ABI verified on one device. | Keep the ABI working as the shared example router is connected. |
 
 Core units, in order: SDK-23 compatibility, separating the example root
-from the OHOS platform, window lifecycle, and chrome/safe-area behavior are
-verified on one phone; add back/touch and keyboard/IME behavior one logical
-unit at a time. Do not bundle
-a GPUI or vendored-renderer upgrade with an unrelated unit.
+from the OHOS platform, window lifecycle, chrome/safe-area behavior, and Back
+are verified on one phone; add touch and keyboard/IME behavior one logical
+unit at a time. Do not bundle a GPUI or vendored-renderer upgrade with an
+unrelated unit.
 
 ## Package matrix (30)
 
@@ -220,5 +221,16 @@ the chrome callback. The probe style was removed before the final HAP build.
 This checks one device and does not establish other cutout shapes or the
 future shared router's theme behavior.
 
-**Next gate:** accept this unit, then handle the OHOS back action as a separate
-core unit.
+On 2026-09-27, the Back unit passed 46/46 root tests, the OHOS Rust release
+build and signed `assembleHap`. The `@Entry` page forwards Back to GPUI as
+Escape and uses GPUI's `default_prevented` result to decide whether to keep
+the page open. The UI thread waits at most 500 ms for that result. On device
+`2MH0224411027452`, an injected Back on About returned to Counter and kept
+count 1; a second Back on Counter exited to the launcher. Reopening the app
+still showed Counter 1 because the process remained alive. Before this unit,
+Back on About exited the app. A physical edge Back gesture on About also
+returned to Counter. This verifies one phone; shared routing and IME
+dismissal remain pending.
+
+**Next gate:** accept this unit, then review the remaining OHOS touch behavior
+as a separate core unit.
