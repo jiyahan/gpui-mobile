@@ -1,9 +1,10 @@
 # OHOS full-repository migration baseline
 
 Recorded on 2026-09-26 at `36e3b28`. Target: OpenHarmony SDK 23, arm64 phone.
-This is an inventory, not a claim of OHOS feature support. The OHOS example
-currently builds with SDK 23 and targets SDK 23, but still declares
-`compatibleSdkVersion: 12`; changing that floor is the next code unit.
+This is an inventory, not a claim of OHOS feature support. At baseline, the
+OHOS example built with SDK 23 and targeted SDK 23, but declared
+`compatibleSdkVersion: 12`. The compatibility floor was raised to 23 in the
+first code unit; see the acceptance record below.
 
 The repo has 30 feature packages, 17 shared example routes and 14 TODO ideas.
 No package has an OHOS-specific backend. Many wrappers compile through a
@@ -173,6 +174,13 @@ tap did not switch tabs; after release, a fresh About tap worked, and return
 to Counter preserved count 1. Local screenshots were inspected but remain
 ignored diagnostic files. This closes only that single-device scenario.
 
-**Next gate:** review this matrix. Then change only the SDK-23 compatibility
-floor, build a signed HAP and verify installation and launch on the connected
-arm64 phone before starting another core unit.
+On 2026-09-26, the SDK-23 compatibility unit passed `example/ohos/build.ps1`
+and signed `assembleHap`. The installed bundle reported
+`apiCompatibleVersion: 23` and `apiTargetVersion: 23` on device
+`2MH0224411027452`. The app launched in portrait; tapping +1 changed the
+counter from 0 to 1, About opened, and returning to Counter preserved 1.
+Screenshots are ignored local diagnostics. This verifies the SDK floor and
+basic probe interaction on one arm64 phone, not the remaining migration.
+
+**Next gate:** accept this SDK-23 unit, then separate the application-provided
+root view from the OHOS host in the next logical unit.

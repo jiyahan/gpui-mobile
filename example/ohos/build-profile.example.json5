@@ -4,7 +4,7 @@
       {
         "name": "default",
         "compileSdkVersion": 23,
-        "compatibleSdkVersion": 12,
+        "compatibleSdkVersion": 23,
         "targetSdkVersion": 23,
         "runtimeOS": "OpenHarmony"
       }
