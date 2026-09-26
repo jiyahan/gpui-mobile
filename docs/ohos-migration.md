@@ -37,15 +37,16 @@ independent units. Do not declare the whole migration complete with blockers.
 | `target_platform()`, `DEFAULT_PLATFORM`, `TargetPlatform::Ohos` | Source present | Cross-compile and assert detection without changing other targets. |
 | `current_platform()` | Pending; its non-Android/iOS branch panics. | Open an app-owned root view from a host-provided native surface. |
 | `gpui::Platform`, `PlatformWindow`, dispatcher and renderer | Counter/About probe and window lifecycle verified on one device; other trait callbacks remain empty. | Recreate and resize the surface, background/foreground, wake frames and release resources. |
-| `set_system_chrome()`, `safe_area_insets()` | Public OHOS paths are no-op/zero; ArkUI probe measures its own inset. | Correct system bars and layout in both orientations and themes. |
+| `set_system_chrome()`, `safe_area_insets()` | Probe verified on one arm64 phone: app-provided bar colors/content style and full-window insets update in portrait and landscape. | Recheck with the shared router and its theme changes. |
 | `show_keyboard()`, `show_keyboard_with_type()`, `hide_keyboard()`, `keyboard_height()`, `set_keyboard_height()` | No OHOS keyboard host. | Open, change type, reposition content and dismiss the IME. |
 | `set_text_input_callback()`, `dispatch_text_input()`, `TEXT_INPUT_DIRTY` | Shared hooks exist; no OHOS input bridge. | Chinese/English composition, insertion, deletion, selection and redraw. |
 | `PlatformView`, factory, registry and handle | Shared registry exists; no OHOS native view host. | Create, position, resize, hide and dispose a native view. |
 | OHOS C ABI surface create/destroy, touch and system colors | App root registration and existing ABI verified on one device. | Keep the ABI working as the shared example router is connected. |
 
 Core units, in order: SDK-23 compatibility, separating the example root
-from the OHOS platform, and window lifecycle are verified; add chrome/safe-area,
-back/touch and keyboard/IME behavior one logical unit at a time. Do not bundle
+from the OHOS platform, window lifecycle, and chrome/safe-area behavior are
+verified on one phone; add back/touch and keyboard/IME behavior one logical
+unit at a time. Do not bundle
 a GPUI or vendored-renderer upgrade with an unrelated unit.
 
 ## Package matrix (30)
@@ -206,5 +207,18 @@ and remained 51 after returning to 1256×2760 and after Home → reopen. This
 covers one arm64 phone and one forced surface recreation; it does not prove
 process-death restoration.
 
-**Next gate:** accept the window-lifecycle unit, then handle system chrome and
-safe-area behavior as the next core unit.
+On 2026-09-27, the system chrome and safe-area unit passed format checking,
+46/46 root tests, Android arm64 `cargo check`, the OHOS Rust release build and
+signed `assembleHap`. No iOS target is installed on this Windows host.
+The full-window XComponent now reports system/cutout/navigation avoidance to
+`safe_area_insets()` in logical points. On device `2MH0224411027452`, the
+portrait report was top 121/bottom 94 pixels; after rotation to 2760×1256 it
+was top 0/bottom 94. Counter remained at 1 and About opened in landscape.
+A temporary probe style switched status-bar background and icon color after
+the first tap; before/after screenshots showed both changes and hilog recorded
+the chrome callback. The probe style was removed before the final HAP build.
+This checks one device and does not establish other cutout shapes or the
+future shared router's theme behavior.
+
+**Next gate:** accept this unit, then handle the OHOS back action as a separate
+core unit.

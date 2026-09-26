@@ -11,7 +11,7 @@ use std::{
     panic::{catch_unwind, AssertUnwindSafe},
     ptr::{self, NonNull},
     rc::Rc,
-    sync::{mpsc, OnceLock},
+    sync::{mpsc, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -37,6 +37,37 @@ use window::WindowState;
 
 type AppCallback = fn(&mut App) -> Result<(), String>;
 static APP_CALLBACK: OnceLock<AppCallback> = OnceLock::new();
+static SAFE_AREA: Mutex<(f32, f32, f32, f32)> = Mutex::new((0.0, 0.0, 0.0, 0.0));
+
+extern "C" {
+    fn gpui_ohos_apply_system_chrome(
+        has_status_color: bool,
+        status_color: u32,
+        has_navigation_color: bool,
+        navigation_color: u32,
+        light_content: bool,
+    );
+}
+
+/// Insets of the full-screen XComponent in logical points: top, bottom, left, right.
+pub fn safe_area_insets() -> (f32, f32, f32, f32) {
+    *SAFE_AREA.lock().unwrap()
+}
+
+pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
+    unsafe {
+        gpui_ohos_apply_system_chrome(
+            style.status_bar_color.is_some(),
+            style.status_bar_color.map(display_rgb).unwrap_or_default(),
+            style.navigation_bar_color.is_some(),
+            style
+                .navigation_bar_color
+                .map(display_rgb)
+                .unwrap_or_default(),
+            style.status_bar_style == crate::StatusBarContentStyle::Light,
+        );
+    }
+}
 
 /// Register the application root before the first XComponent surface arrives.
 pub fn set_app_callback(callback: AppCallback) -> Result<(), &'static str> {
@@ -551,6 +582,36 @@ pub extern "C" fn gpui_ohos_touch(phase: u32, device_id: i64, native_id: i32, x:
 #[no_mangle]
 pub extern "C" fn gpui_ohos_set_foreground(foreground: bool) {
     let _ = sender().send(Command::Foreground(foreground));
+}
+
+/// Receive physical window avoidance and expose it in GPUI logical points.
+#[no_mangle]
+pub extern "C" fn gpui_ohos_set_safe_area(
+    top: f32,
+    bottom: f32,
+    left: f32,
+    right: f32,
+    scale: f32,
+) {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let logical = |value: f32| {
+        if value.is_finite() {
+            value.max(0.0) / scale
+        } else {
+            0.0
+        }
+    };
+    let insets = (logical(top), logical(bottom), logical(left), logical(right));
+    let mut current = SAFE_AREA.lock().unwrap();
+    if *current != insets {
+        *current = insets;
+        drop(current);
+        let _ = sender().send(Command::Frame(true));
+    }
 }
 
 /// Synchronously release the GPU surface before ArkUI frees OHNativeWindow.

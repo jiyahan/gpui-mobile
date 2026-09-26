@@ -37,10 +37,11 @@ footer, and Counter state preservation were checked on one physical OHOS
 device. About's emoji glyphs were also checked on that device after loading
 its color emoji font and selecting an RGBA color atlas. About's existing
 Android/iOS-only descriptions remain inaccurate on OHOS.
-The window now uses immersive layout with the measured status-bar inset at the
-top. GPUI draws the bottom navigation through the gesture area, without an
-extra safe-area strip. Both tabs respond to taps, and the system bottom-swipe
-gesture still opens the recent-apps view on the tested device.
+The window uses immersive layout. ArkUI reports system avoidance to GPUI in
+logical points, and the probe places its content inside those insets. The
+XComponent fills the window, including the status and gesture areas. Both
+tabs respond to taps, and the system bottom-swipe gesture still opens the
+recent-apps view on the tested device.
 On 2026-09-26, `+50` then `+100` produced 150 on the device. Ten cycles of
 `+1` → About → scroll to the footer → immediate Counter switch ended at 10,
 with no missed switch. Sending the app to the home screen and reopening it
@@ -73,3 +74,12 @@ without restarting the app. The same scenario was retested on the signed HAP
 in landscape at 2760×1256: the HDC tap did not switch tabs while a physical
 finger was held; after release, an About tap succeeded, and returning to
 Counter preserved count 1. This was one device run, not a wider input test.
+
+On 2026-09-27, the full-window layout and system chrome bridge were checked
+on the same phone. In portrait, the reported avoidance was top 121/bottom 94
+physical pixels; in landscape it was top 0/bottom 94. A temporary style tied
+to the first Counter tap changed the status bar from dark with light icons to
+light with dark icons. Screenshots confirmed the change; the test style was
+removed before the final HAP build. Counter 1 and the About tab remained
+usable in landscape. Other cutout shapes and the future shared router's theme
+changes remain untested.

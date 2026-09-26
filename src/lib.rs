@@ -125,6 +125,7 @@ impl Default for SystemChromeStyle {
 /// On iOS this updates `preferredStatusBarStyle` on the root view controller.
 /// On Android this calls `Window.setStatusBarColor()`,
 /// `Window.setNavigationBarColor()`, and configures light/dark status bar icons.
+/// On OHOS this updates the host window's system bar properties.
 ///
 /// On unsupported platforms this is a no-op.
 pub fn set_system_chrome(style: &SystemChromeStyle) {
@@ -136,7 +137,11 @@ pub fn set_system_chrome(style: &SystemChromeStyle) {
     {
         android::jni::set_system_chrome(style);
     }
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    #[cfg(target_env = "ohos")]
+    {
+        ohos::set_system_chrome(style);
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "android", target_env = "ohos")))]
     {
         let _ = style;
     }
@@ -326,6 +331,7 @@ pub fn set_keyboard_height(height: f32) {
 /// Returns `(top, bottom, left, right)` in logical points.
 /// On iOS this queries `safeAreaInsets` from the UIView.
 /// On Android use the `AndroidWindow::safe_area_insets_logical()` method instead.
+/// On OHOS this reports system avoidance within the full-screen XComponent.
 /// On unsupported platforms returns zeros.
 pub fn safe_area_insets() -> (f32, f32, f32, f32) {
     #[cfg(target_os = "ios")]
@@ -339,8 +345,11 @@ pub fn safe_area_insets() -> (f32, f32, f32, f32) {
             }
         }
     }
-    #[cfg(not(target_os = "ios"))]
-    {}
+    #[cfg(target_env = "ohos")]
+    {
+        return ohos::safe_area_insets();
+    }
+    #[cfg(not(target_env = "ohos"))]
     (0.0, 0.0, 0.0, 0.0)
 }
 

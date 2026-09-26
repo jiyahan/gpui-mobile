@@ -5,10 +5,11 @@
 //! state these two screens need.
 
 use gpui::{
-    div, rgb, Context, Font, FontFallbacks, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window,
+    div, px, rgb, Context, Font, FontFallbacks, InteractiveElement, IntoElement, ParentElement,
+    Render, StatefulInteractiveElement, Styled, Window,
 };
 use gpui_mobile::components::material::NavigationBarBuilder;
+use gpui_mobile::{StatusBarContentStyle, SystemChromeStyle};
 
 #[rustfmt::skip]
 #[path = "../../../src/screens/about.rs"]
@@ -61,16 +62,26 @@ impl Router {
 
 impl Render for Router {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let (top, bottom, left, right) = gpui_mobile::safe_area_insets();
+        let navigation_color = NavigationBarBuilder::surface_color(self.dark_mode);
+        gpui_mobile::set_system_chrome(&SystemChromeStyle {
+            status_bar_color: Some(BASE),
+            status_bar_style: StatusBarContentStyle::Light,
+            navigation_bar_color: Some(navigation_color),
+        });
         div()
             .flex()
             .flex_col()
             .size_full()
             .bg(rgb(BASE))
+            .pl(px(left))
+            .pr(px(right))
             .font(Font {
                 fallbacks: Some(FontFallbacks::from_fonts(vec!["HMOS Color Emoji".into()])),
                 ..Font::default()
             })
             .text_color(rgb(TEXT))
+            .child(div().h(px(top)))
             .child(match self.page {
                 Page::Counter => div()
                     .id("counter-scroll-container")
@@ -108,5 +119,6 @@ impl Render for Router {
                     )
                     .build(),
             )
+            .child(div().h(px(bottom)).bg(rgb(navigation_color)))
     }
 }
