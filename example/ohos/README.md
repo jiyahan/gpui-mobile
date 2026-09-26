@@ -27,6 +27,10 @@ The Android/iOS multi-screen router is not yet connected.
 - Launch: the Counter screen shows zero, action buttons, and a milestone bar.
 - Touch: `+1`, `+5`, and `Reset to zero` update the count from 0 to 1 to 6 to 0;
   `+10` then `-` update it from 0 to 10 to 9 and cross the first milestone.
+- Touch interruption: hold a contact while sending the app to Home, then
+  release, reopen, and verify a new tap and tab switch still work.
+- Surface interruption: while one contact is down, recreate the XComponent;
+  after release, verify Counter and About still respond.
 - About: the tab opens the existing About layout, which scrolls to its footer;
   returning to Counter preserves the count.
 - Back: from About return to Counter without losing the count; from Counter
@@ -91,3 +95,16 @@ About returned to Counter with count 1; Back on Counter exited to the launcher.
 Reopening the app showed Counter 1 because the process stayed alive. A
 physical edge Back gesture on About also returned to Counter. The callback
 is bounded to 500 ms; shared routes and IME behavior remain pending.
+
+On 2026-09-27, a held finger on empty Counter space overlapped an HDC Home
+event. After the finger was released and the app reopened, Counter showed 0;
+the next +1 and About → Counter sequence worked and left the count at 1.
+The render thread now cancels tracked contacts on background and surface
+detach. A temporary HAP also destroyed and recreated the XComponent while a
+finger was held. After release, +1 and About still worked; the temporary
+test button was removed before the final build. The reinstalled signed HAP
+showed Counter without the button, and +1 → About → Counter preserved 1. A
+separate native event log received both IDs in a two-finger tap, but the
+shared GPUI recognizer only activated one button. Surface recreation also
+changed rendered colors from washed-out gray to the intended dark palette;
+this presentation issue remains open.

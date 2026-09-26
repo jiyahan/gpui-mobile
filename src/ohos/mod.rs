@@ -385,9 +385,29 @@ impl RenderState {
         handled
     }
 
+    fn cancel_active_touches(&mut self) {
+        let mut callback = self.window.borrow_mut().input.take();
+        for (_, (id, position)) in self.active_touches.drain() {
+            if let Some(callback) = callback.as_mut() {
+                callback(PlatformInput::Touch(TouchEvent {
+                    id,
+                    phase: TouchPhase::Cancelled,
+                    position,
+                    predicted_position: None,
+                    force: None,
+                }));
+            }
+        }
+        self.window.borrow_mut().input = callback;
+        self.fling_guard = FlingGuard::new();
+    }
+
     fn set_foreground(&mut self, foreground: bool) {
         if self.foreground == foreground {
             return;
+        }
+        if !foreground {
+            self.cancel_active_touches();
         }
         self.foreground = foreground;
         self.update_active();
@@ -426,8 +446,7 @@ impl RenderState {
     }
 
     fn detach(&mut self) {
-        self.active_touches.clear();
-        self.fling_guard = FlingGuard::new();
+        self.cancel_active_touches();
         let mut state = self.window.borrow_mut();
         if let Some(renderer) = state.renderer.as_mut() {
             renderer.destroy();

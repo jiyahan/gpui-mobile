@@ -36,13 +36,13 @@ independent units. Do not declare the whole migration complete with blockers.
 | --- | --- | --- |
 | `target_platform()`, `DEFAULT_PLATFORM`, `TargetPlatform::Ohos` | Source present | Cross-compile and assert detection without changing other targets. |
 | `current_platform()` | Pending; its non-Android/iOS branch panics. | Open an app-owned root view from a host-provided native surface. |
-| `gpui::Platform`, `PlatformWindow`, dispatcher and renderer | Counter/About probe and window lifecycle verified on one device; other trait callbacks remain empty. | Recreate and resize the surface, background/foreground, wake frames and release resources. |
+| `gpui::Platform`, `PlatformWindow`, dispatcher and renderer | Counter/About probe and window lifecycle verified on one device; other trait callbacks remain empty. Surface recreation changes rendered colors on the tested phone. | Recreate and resize the surface, background/foreground, wake frames and release resources; resolve the color change. |
 | `set_system_chrome()`, `safe_area_insets()` | Probe verified on one arm64 phone: app-provided bar colors/content style and full-window insets update in portrait and landscape. | Recheck with the shared router and its theme changes. |
 | System Back / GPUI Escape input | Probe verified on one arm64 phone: About handles Back and Counter delegates to the OS. | Recheck shared routing and IME dismissal when those units land. |
 | `show_keyboard()`, `show_keyboard_with_type()`, `hide_keyboard()`, `keyboard_height()`, `set_keyboard_height()` | No OHOS keyboard host. | Open, change type, reposition content and dismiss the IME. |
 | `set_text_input_callback()`, `dispatch_text_input()`, `TEXT_INPUT_DIRTY` | Shared hooks exist; no OHOS input bridge. | Chinese/English composition, insertion, deletion, selection and redraw. |
 | `PlatformView`, factory, registry and handle | Shared registry exists; no OHOS native view host. | Create, position, resize, hide and dispose a native view. |
-| OHOS C ABI surface create/destroy, touch and system colors | App root registration and existing ABI verified on one device. | Keep the ABI working as the shared example router is connected. |
+| OHOS C ABI surface create/destroy, touch and system colors | App root, lifecycle and single-touch probe verified on one device; background and surface detach cancel tracked contacts. Native bridge delivered both contact IDs in a two-finger diagnostic. | Recheck with the shared router; simultaneous independent button activation is limited by the shared GPUI recognizer. |
 
 Core units, in order: SDK-23 compatibility, separating the example root
 from the OHOS platform, window lifecycle, chrome/safe-area behavior, and Back
@@ -232,5 +232,28 @@ Back on About exited the app. A physical edge Back gesture on About also
 returned to Counter. This verifies one phone; shared routing and IME
 dismissal remain pending.
 
-**Next gate:** accept this unit, then review the remaining OHOS touch behavior
-as a separate core unit.
+On 2026-09-27, the touch-interruption unit passed format checking, 46/46 root
+tests, the OHOS Rust release build and signed `assembleHap`. The render thread
+now sends `Cancelled` for tracked contacts before backgrounding or detaching
+the surface, then resets its fling guard. On device `2MH0224411027452`, a
+physical finger was held in empty Counter space while an HDC Home event sent
+the app to the background. After release and reopening, Counter remained at
+0; +1 and About → Counter worked, ending at 1. In a temporary HAP, a second
+finger removed and recreated the XComponent while the first remained down.
+The surface-destroyed and surface-created callbacks ran in the same process;
+after release, Counter remained usable, +1 reached 1, and About opened. The
+temporary test button was removed from source before the final build. The
+signed final HAP was reinstalled: Counter had no test button, +1 changed 0 to
+1, and About → Counter preserved 1.
+
+A separate two-finger diagnostic showed native DOWN/UP events for contact IDs
+0 and 1, but simultaneous button taps produced only one action. The current
+shared GPUI recognizer ignores an additional contact while one is active, so
+independent simultaneous button activation remains unsupported. Surface
+recreation also changed Counter's background pixel from approximately
+`#4B4E57` to the theme's `#121318` on this device. Touch recovery works, but
+the color transition needs a renderer follow-up before lifecycle presentation
+can be considered stable.
+
+**Next gate:** accept touch interruption, then investigate the surface color
+transition and the keyboard/text-input bridge as separate units.
