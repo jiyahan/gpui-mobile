@@ -17,7 +17,7 @@ use std::{
 
 use gpui::{
     size, App, Application, ApplicationHandle, DevicePixels, Pixels, PlatformInput, Point,
-    RequestFrameOptions, TouchEvent, TouchId, TouchPhase,
+    RequestFrameOptions, TouchEvent, TouchId, TouchPhase, WindowVisibility,
 };
 use gpui_wgpu_ohos::{GpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use raw_window_handle::{
@@ -122,13 +122,15 @@ enum Command {
     },
     Frame(bool),
     Task(gpui::RunnableVariant),
-    Destroy(mpsc::Sender<()>),
+    Foreground(bool),
+    Detach(mpsc::Sender<()>),
 }
 
 struct RenderState {
     gpu_context: GpuContext,
     window: Rc<RefCell<WindowState>>,
     application: Option<ApplicationHandle>,
+    foreground: bool,
     touch_id: u64,
     active_touches: HashMap<(i64, i32), (TouchId, Point<Pixels>)>,
     fling_guard: FlingGuard,
@@ -140,6 +142,7 @@ impl RenderState {
             gpu_context: Rc::new(RefCell::new(None)),
             window: Rc::new(RefCell::new(WindowState::new())),
             application: None,
+            foreground: false,
             touch_id: 0,
             active_touches: HashMap::new(),
             fling_guard: FlingGuard::new(),
@@ -182,46 +185,70 @@ impl RenderState {
             return Ok(());
         }
 
-        let callback = APP_CALLBACK
-            .get()
-            .ok_or("OHOS application root was not registered")?;
-        self.destroy();
+        if self.application.is_none() && APP_CALLBACK.get().is_none() {
+            return Err("OHOS application root was not registered".into());
+        }
+        if self.window.borrow().window.is_some() {
+            self.detach();
+        }
         let config = WgpuSurfaceConfig {
             size: size(DevicePixels(width as i32), DevicePixels(height as i32)),
             transparent: false,
             preferred_present_mode: None,
         };
-        let renderer = WgpuRenderer::new(self.gpu_context.clone(), &window, config, None)
-            .map_err(|error| error.to_string())?;
         {
             let mut state = self.window.borrow_mut();
+            if let Some(renderer) = state.renderer.as_mut() {
+                renderer
+                    .recover(&window)
+                    .map_err(|error| error.to_string())?;
+                renderer.update_drawable_size(config.size);
+            } else {
+                state.renderer = Some(
+                    WgpuRenderer::new(self.gpu_context.clone(), &window, config, None)
+                        .map_err(|error| error.to_string())?,
+                );
+            }
             state.window = Some(window);
             state.width = width;
             state.height = height;
             state.scale = scale;
-            state.renderer = Some(renderer);
         }
-        let platform = Rc::new(
-            OhosPlatform::new(self.window.clone(), sender().clone())
-                .map_err(|error| error.to_string())?,
-        );
-        let launch_error = Rc::new(RefCell::new(None));
-        let report_error = launch_error.clone();
-        let application = Application::with_platform(platform).run_embedded(move |cx: &mut App| {
-            if let Err(error) = callback(cx) {
-                *report_error.borrow_mut() = Some(error);
+        if self.application.is_none() {
+            let callback = APP_CALLBACK.get().unwrap();
+            let platform = Rc::new(
+                OhosPlatform::new(self.window.clone(), sender().clone())
+                    .map_err(|error| error.to_string())?,
+            );
+            let launch_error = Rc::new(RefCell::new(None));
+            let report_error = launch_error.clone();
+            let application =
+                Application::with_platform(platform).run_embedded(move |cx: &mut App| {
+                    if let Err(error) = callback(cx) {
+                        *report_error.borrow_mut() = Some(error);
+                    }
+                });
+            if let Some(error) = launch_error.borrow_mut().take() {
+                self.destroy();
+                return Err(error);
             }
-        });
-        if let Some(error) = launch_error.borrow_mut().take() {
-            self.destroy();
-            return Err(error);
+            self.application = Some(application);
+        } else {
+            let mut resize = self.window.borrow_mut().resize.take();
+            if let Some(callback) = resize.as_mut() {
+                callback(self.window.borrow().bounds().size, scale);
+            }
+            self.window.borrow_mut().resize = resize;
         }
-        self.application = Some(application);
+        self.update_active();
         self.frame(true);
         Ok(())
     }
 
     fn frame(&mut self, force_render: bool) {
+        if !self.window.borrow().active {
+            return;
+        }
         let mut callback = self.window.borrow_mut().request_frame.take();
         if let Some(callback) = callback.as_mut() {
             callback(RequestFrameOptions {
@@ -233,6 +260,9 @@ impl RenderState {
     }
 
     fn touch(&mut self, phase: u32, device_id: i64, native_id: i32, x: f32, y: f32) {
+        if !self.window.borrow().active {
+            return;
+        }
         let phase = match phase {
             0 => TouchPhase::Started,
             1 => TouchPhase::Ended,
@@ -297,13 +327,62 @@ impl RenderState {
         }
     }
 
-    fn destroy(&mut self) {
-        self.application = None;
+    fn set_foreground(&mut self, foreground: bool) {
+        if self.foreground == foreground {
+            return;
+        }
+        self.foreground = foreground;
+        self.update_active();
+        if foreground {
+            self.frame(true);
+        }
+    }
+
+    fn update_active(&mut self) {
+        let active = self.foreground && self.window.borrow().window.is_some();
+        let (mut active_status, mut visibility_changed) = {
+            let mut state = self.window.borrow_mut();
+            if state.active == active {
+                return;
+            }
+            state.active = active;
+            (state.active_status.take(), state.visibility_changed.take())
+        };
+        if let Some(callback) = active_status.as_mut() {
+            callback(active);
+        }
+        if let Some(callback) = visibility_changed.as_mut() {
+            callback(if active {
+                WindowVisibility::Visible
+            } else {
+                WindowVisibility::Hidden
+            });
+        }
+        let mut state = self.window.borrow_mut();
+        if state.active_status.is_none() {
+            state.active_status = active_status;
+        }
+        if state.visibility_changed.is_none() {
+            state.visibility_changed = visibility_changed;
+        }
+    }
+
+    fn detach(&mut self) {
         self.active_touches.clear();
         self.fling_guard = FlingGuard::new();
-        if let Some(mut renderer) = self.window.borrow_mut().renderer.take() {
+        let mut state = self.window.borrow_mut();
+        if let Some(renderer) = state.renderer.as_mut() {
             renderer.destroy();
         }
+        state.window = None;
+        state.frame_queued.set(false);
+        drop(state);
+        self.update_active();
+    }
+
+    fn destroy(&mut self) {
+        self.detach();
+        self.application = None;
         *self.window.borrow_mut() = WindowState::new();
         *self.gpu_context.borrow_mut() = None;
     }
@@ -378,15 +457,21 @@ fn sender() -> &'static mpsc::Sender<Command> {
                                 state.window.borrow().frame_queued.set(false);
                                 if force {
                                     state.frame(true);
-                                } else {
+                                } else if state.window.borrow().active {
                                     pacer.schedule(Instant::now());
                                 }
                             }
                             Command::Task(runnable) => {
                                 runnable.run();
                             }
-                            Command::Destroy(reply) => {
-                                state.destroy();
+                            Command::Foreground(foreground) => {
+                                state.set_foreground(foreground);
+                                if !foreground {
+                                    pacer = FramePacer::with_clock(FRAME_INTERVAL);
+                                }
+                            }
+                            Command::Detach(reply) => {
+                                state.detach();
                                 pacer = FramePacer::with_clock(FRAME_INTERVAL);
                                 let _ = reply.send(());
                             }
@@ -462,11 +547,17 @@ pub extern "C" fn gpui_ohos_touch(phase: u32, device_id: i64, native_id: i32, x:
     });
 }
 
+/// Forward UIAbility foreground/background changes to the GPUI render thread.
+#[no_mangle]
+pub extern "C" fn gpui_ohos_set_foreground(foreground: bool) {
+    let _ = sender().send(Command::Foreground(foreground));
+}
+
 /// Synchronously release the GPU surface before ArkUI frees OHNativeWindow.
 #[no_mangle]
 pub extern "C" fn gpui_ohos_surface_destroyed() {
     let (reply, received) = mpsc::channel();
-    if sender().send(Command::Destroy(reply)).is_ok() {
+    if sender().send(Command::Detach(reply)).is_ok() {
         let _ = received.recv();
     }
 }

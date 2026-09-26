@@ -27,10 +27,13 @@ pub(super) struct WindowState {
     pub(super) width: u32,
     pub(super) height: u32,
     pub(super) scale: f32,
+    pub(super) active: bool,
     pub(super) request_frame: Option<Box<dyn FnMut(RequestFrameOptions)>>,
     pub(super) frame_queued: Rc<Cell<bool>>,
     pub(super) input: Option<Box<dyn FnMut(PlatformInput) -> DispatchEventResult>>,
     pub(super) resize: Option<Box<dyn FnMut(gpui::Size<gpui::Pixels>, f32)>>,
+    pub(super) active_status: Option<Box<dyn FnMut(bool)>>,
+    pub(super) visibility_changed: Option<Box<dyn FnMut(WindowVisibility)>>,
     input_handler: Option<PlatformInputHandler>,
 }
 
@@ -42,10 +45,13 @@ impl WindowState {
             width: 0,
             height: 0,
             scale: 1.0,
+            active: false,
             request_frame: None,
             frame_queued: Rc::new(Cell::new(false)),
             input: None,
             resize: None,
+            active_status: None,
+            visibility_changed: None,
             input_handler: None,
         }
     }
@@ -147,10 +153,14 @@ impl PlatformWindow for OhosPlatformWindow {
     }
     fn activate(&self) {}
     fn is_active(&self) -> bool {
-        self.state.borrow().renderer.is_some()
+        self.state.borrow().active
     }
     fn visibility(&self) -> WindowVisibility {
-        WindowVisibility::Visible
+        if self.state.borrow().active {
+            WindowVisibility::Visible
+        } else {
+            WindowVisibility::Hidden
+        }
     }
     fn is_hovered(&self) -> bool {
         false
@@ -175,8 +185,12 @@ impl PlatformWindow for OhosPlatformWindow {
         self.state.borrow_mut().input = Some(callback);
     }
 
-    fn on_active_status_change(&self, _callback: Box<dyn FnMut(bool)>) {}
-    fn on_visibility_change(&self, _callback: Box<dyn FnMut(WindowVisibility)>) {}
+    fn on_active_status_change(&self, callback: Box<dyn FnMut(bool)>) {
+        self.state.borrow_mut().active_status = Some(callback);
+    }
+    fn on_visibility_change(&self, callback: Box<dyn FnMut(WindowVisibility)>) {
+        self.state.borrow_mut().visibility_changed = Some(callback);
+    }
     fn on_hover_status_change(&self, _callback: Box<dyn FnMut(bool)>) {}
     fn on_resize(&self, callback: Box<dyn FnMut(gpui::Size<gpui::Pixels>, f32)>) {
         self.state.borrow_mut().resize = Some(callback);
@@ -201,7 +215,11 @@ impl PlatformWindow for OhosPlatformWindow {
     }
 
     fn draw(&self, scene: &gpui::Scene) {
-        if let Some(renderer) = self.state.borrow_mut().renderer.as_mut() {
+        let mut state = self.state.borrow_mut();
+        if !state.active {
+            return;
+        }
+        if let Some(renderer) = state.renderer.as_mut() {
             renderer.draw(scene);
         }
     }

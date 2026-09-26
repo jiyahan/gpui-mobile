@@ -36,15 +36,15 @@ independent units. Do not declare the whole migration complete with blockers.
 | --- | --- | --- |
 | `target_platform()`, `DEFAULT_PLATFORM`, `TargetPlatform::Ohos` | Source present | Cross-compile and assert detection without changing other targets. |
 | `current_platform()` | Pending; its non-Android/iOS branch panics. | Open an app-owned root view from a host-provided native surface. |
-| `gpui::Platform`, `PlatformWindow`, dispatcher, renderer | Counter/About probe verified; many trait callbacks empty. | Recreate and resize the surface, background/foreground, wake frames and release resources. |
+| `gpui::Platform`, `PlatformWindow`, dispatcher and renderer | Counter/About probe and window lifecycle verified on one device; other trait callbacks remain empty. | Recreate and resize the surface, background/foreground, wake frames and release resources. |
 | `set_system_chrome()`, `safe_area_insets()` | Public OHOS paths are no-op/zero; ArkUI probe measures its own inset. | Correct system bars and layout in both orientations and themes. |
 | `show_keyboard()`, `show_keyboard_with_type()`, `hide_keyboard()`, `keyboard_height()`, `set_keyboard_height()` | No OHOS keyboard host. | Open, change type, reposition content and dismiss the IME. |
 | `set_text_input_callback()`, `dispatch_text_input()`, `TEXT_INPUT_DIRTY` | Shared hooks exist; no OHOS input bridge. | Chinese/English composition, insertion, deletion, selection and redraw. |
 | `PlatformView`, factory, registry and handle | Shared registry exists; no OHOS native view host. | Create, position, resize, hide and dispose a native view. |
 | OHOS C ABI surface create/destroy, touch and system colors | App root registration and existing ABI verified on one device. | Keep the ABI working as the shared example router is connected. |
 
-Core units, in order: SDK-23 compatibility and separating the example root
-from the OHOS platform are verified; add lifecycle, chrome/safe-area,
+Core units, in order: SDK-23 compatibility, separating the example root
+from the OHOS platform, and window lifecycle are verified; add chrome/safe-area,
 back/touch and keyboard/IME behavior one logical unit at a time. Do not bundle
 a GPUI or vendored-renderer upgrade with an unrelated unit.
 
@@ -193,5 +193,18 @@ and a scrolled Counter +1 changed the milestone from 1/10 to 2/10. Returning
 to 1256×2760 showed count 2. Root-crate tests passed 46/46. These checks do
 not establish surface-recreation state preservation or shared-route support.
 
-**Next gate:** accept the root-view unit, then handle window reconstruction
-and foreground/background state as the next core unit.
+On 2026-09-26, the window-lifecycle unit passed format checking, 46/46 root
+tests, the OHOS Rust release build, and signed `assembleHap`. On device
+`2MH0224411027452`, Home → reopen fired background/foreground callbacks and
+preserved Counter 1. A temporary test build removed and reinserted XComponent
+once within the same process; hilog recorded surface destruction at 12:59:44
+and creation at 12:59:45. Counter still showed 1 after reconstruction; About
+→ Counter and +1 then produced 2. The temporary mount toggle was removed
+before the final HAP build. The final signed HAP was installed again: at
+2760×1256, Counter could scroll and both tabs worked; the count reached 51
+and remained 51 after returning to 1256×2760 and after Home → reopen. This
+covers one arm64 phone and one forced surface recreation; it does not prove
+process-death restoration.
+
+**Next gate:** accept the window-lifecycle unit, then handle system chrome and
+safe-area behavior as the next core unit.

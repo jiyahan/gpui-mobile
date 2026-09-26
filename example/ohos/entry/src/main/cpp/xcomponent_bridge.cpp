@@ -14,6 +14,7 @@ extern "C" bool gpui_ohos_surface_created(void* window, uint32_t width, uint32_t
 extern "C" void gpui_ohos_touch(uint32_t phase, int64_t device_id, int32_t native_id,
                                 float x, float y);
 extern "C" void gpui_ohos_surface_destroyed();
+extern "C" void gpui_ohos_set_foreground(bool foreground);
 extern "C" uint32_t gpui_ohos_background_color();
 extern "C" uint32_t gpui_ohos_foreground_color();
 extern "C" uint32_t gpui_ohos_bottom_bar_color();
@@ -46,6 +47,22 @@ napi_value GetBottomBarColor(napi_env env, napi_callback_info) {
     return color;
 }
 
+napi_value SetForeground(napi_env env, napi_callback_info info) {
+    std::size_t argc = 1;
+    napi_value args[1] = {};
+    bool foreground = false;
+    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok ||
+        argc != 1 || napi_get_value_bool(env, args[0], &foreground) != napi_ok) {
+        napi_throw_type_error(env, nullptr, "setForeground expects a boolean");
+        return nullptr;
+    }
+    gpui_ohos_set_foreground(foreground);
+    OH_LOG_Print(LOG_APP, LOG_INFO, kLogDomain, kLogTag,
+                 "UIAbility %{public}s", foreground ? "foreground" : "background");
+    napi_value result = nullptr;
+    return napi_get_undefined(env, &result) == napi_ok ? result : nullptr;
+}
+
 void AttachSurface(OH_NativeXComponent* component, void* window) {
     uint64_t width = 0;
     uint64_t height = 0;
@@ -71,6 +88,7 @@ void AttachSurface(OH_NativeXComponent* component, void* window) {
 }
 
 void OnSurfaceCreated(OH_NativeXComponent* component, void* window) {
+    OH_LOG_Print(LOG_APP, LOG_INFO, kLogDomain, kLogTag, "XComponent surface created");
     AttachSurface(component, window);
 }
 
@@ -80,6 +98,7 @@ void OnSurfaceChanged(OH_NativeXComponent* component, void* window) {
 
 void OnSurfaceDestroyed(OH_NativeXComponent*, void*) {
     gpui_ohos_surface_destroyed();
+    OH_LOG_Print(LOG_APP, LOG_INFO, kLogDomain, kLogTag, "XComponent surface destroyed");
 }
 
 void OnTouch(OH_NativeXComponent* component, void* window) {
@@ -104,9 +123,11 @@ napi_value Init(napi_env env, napi_value exports) {
         {"getForegroundColor", nullptr, GetForegroundColor, nullptr, nullptr, nullptr,
          napi_default, nullptr},
         {"getBottomBarColor", nullptr, GetBottomBarColor, nullptr, nullptr, nullptr,
+         napi_default, nullptr},
+        {"setForeground", nullptr, SetForeground, nullptr, nullptr, nullptr,
          napi_default, nullptr}
     };
-    if (napi_define_properties(env, exports, 3, properties) != napi_ok) {
+    if (napi_define_properties(env, exports, 4, properties) != napi_ok) {
         return exports;
     }
     napi_value nativeObject = nullptr;

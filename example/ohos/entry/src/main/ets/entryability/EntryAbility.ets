@@ -1,8 +1,17 @@
 import UIAbility from '@ohos.app.ability.UIAbility';
 import window from '@ohos.window';
+import native from 'libentry.so';
 import { BACKGROUND_COLOR, BOTTOM_BAR_COLOR, FOREGROUND_COLOR } from '../theme/Theme';
 
 export default class EntryAbility extends UIAbility {
+  onForeground(): void {
+    native.setForeground(true);
+  }
+
+  onBackground(): void {
+    native.setForeground(false);
+  }
+
   onWindowStageCreate(windowStage: window.WindowStage): void {
     const mainWindow = windowStage.getMainWindowSync();
     const statusInsetPx = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM).topRect.height;

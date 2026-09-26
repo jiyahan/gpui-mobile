@@ -57,6 +57,14 @@ count 1 in portrait. A landscape rotation kept that count, both tabs worked,
 and a scrolled Counter +1 produced 2. Rotating back to portrait still showed
 2. The HAP contained `libentry.so` without the old platform `.so`.
 
+On 2026-09-26, the window-lifecycle build kept Counter 1 after Home and reopen.
+A temporary device test unmounted and remounted XComponent in the same process;
+hilog confirmed surface destruction followed by creation. The recovered view
+still showed Counter 1, and About → Counter → +1 reached 2. The temporary
+mount toggle was removed before the final HAP was built. The final HAP was
+installed again; landscape scrolling and tabs worked, and Counter 51 survived
+rotation back to portrait and Home → reopen.
+
 Overlapping a held finger with an HDC tap exposed a touch-ID collision: both
 sources reported device 0, touch 0. The bridge now cancels the old contact on
 a duplicate start. In a portrait device retest, the overlapping tap did not
