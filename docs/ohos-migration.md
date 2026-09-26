@@ -41,10 +41,10 @@ independent units. Do not declare the whole migration complete with blockers.
 | `show_keyboard()`, `show_keyboard_with_type()`, `hide_keyboard()`, `keyboard_height()`, `set_keyboard_height()` | No OHOS keyboard host. | Open, change type, reposition content and dismiss the IME. |
 | `set_text_input_callback()`, `dispatch_text_input()`, `TEXT_INPUT_DIRTY` | Shared hooks exist; no OHOS input bridge. | Chinese/English composition, insertion, deletion, selection and redraw. |
 | `PlatformView`, factory, registry and handle | Shared registry exists; no OHOS native view host. | Create, position, resize, hide and dispose a native view. |
-| OHOS C ABI surface create/destroy, touch and system colors | Probe verified on one device. | Preserve this working ABI while removing the hard-coded probe root. |
+| OHOS C ABI surface create/destroy, touch and system colors | App root registration and existing ABI verified on one device. | Keep the ABI working as the shared example router is connected. |
 
-Core units, in order: raise the compatible SDK floor to 23; separate the
-example root view from `src/ohos/view.rs`; add lifecycle, chrome/safe-area,
+Core units, in order: SDK-23 compatibility and separating the example root
+from the OHOS platform are verified; add lifecycle, chrome/safe-area,
 back/touch and keyboard/IME behavior one logical unit at a time. Do not bundle
 a GPUI or vendored-renderer upgrade with an unrelated unit.
 
@@ -182,5 +182,16 @@ counter from 0 to 1, About opened, and returning to Counter preserved 1.
 Screenshots are ignored local diagnostics. This verifies the SDK floor and
 basic probe interaction on one arm64 phone, not the remaining migration.
 
-**Next gate:** accept this SDK-23 unit, then separate the application-provided
-root view from the OHOS host in the next logical unit.
+On 2026-09-26, the OHOS root-view unit moved the Counter/About probe router
+to `example/ohos/rust/`. The example registers its root before XComponent
+surface creation. The Rust static library now links into `libentry.so`, whose
+dynamic symbol table retains the existing `gpui_ohos_*` entry points. A clean
+signed HAP contains `libentry.so` and no old `libgpui_mobile.so`. On the same
+arm64 device, installation and launch succeeded; portrait +1, About and return
+preserved count 1. Rotating to 2760×1256 kept count 1, About switching worked,
+and a scrolled Counter +1 changed the milestone from 1/10 to 2/10. Returning
+to 1256×2760 showed count 2. Root-crate tests passed 46/46. These checks do
+not establish surface-recreation state preservation or shared-route support.
+
+**Next gate:** accept the root-view unit, then handle window reconstruction
+and foreground/background state as the next core unit.

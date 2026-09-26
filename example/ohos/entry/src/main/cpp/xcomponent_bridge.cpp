@@ -6,7 +6,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 
+extern "C" bool gpui_ohos_register_app();
 extern "C" bool gpui_ohos_surface_created(void* window, uint32_t width, uint32_t height,
                                             float scale, char* error_buffer, std::size_t error_capacity);
 extern "C" void gpui_ohos_touch(uint32_t phase, int64_t device_id, int32_t native_id,
@@ -90,6 +92,12 @@ void OnTouch(OH_NativeXComponent* component, void* window) {
 }
 
 napi_value Init(napi_env env, napi_value exports) {
+    static std::once_flag registration;
+    std::call_once(registration, [] {
+        if (!gpui_ohos_register_app()) {
+            OH_LOG_Print(LOG_APP, LOG_ERROR, kLogDomain, kLogTag, "GPUI app registration failed");
+        }
+    });
     napi_property_descriptor properties[] = {
         {"getBackgroundColor", nullptr, GetBackgroundColor, nullptr, nullptr, nullptr,
          napi_default, nullptr},

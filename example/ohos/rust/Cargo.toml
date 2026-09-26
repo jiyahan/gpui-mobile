@@ -1,0 +1,12 @@
+[package]
+name = "gpui-mobile-ohos-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+gpui-mobile = { package = "gpui-pre-mobile", path = "../../.." }
+gpui = { package = "gpui-pre", version = "=0.3.6", default-features = false }

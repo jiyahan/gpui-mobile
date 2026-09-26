@@ -16,8 +16,8 @@ use std::{
 };
 
 use gpui::{
-    size, App, AppContext, Application, ApplicationHandle, DevicePixels, Pixels, PlatformInput,
-    Point, RequestFrameOptions, TouchEvent, TouchId, TouchPhase, WindowOptions,
+    size, App, Application, ApplicationHandle, DevicePixels, Pixels, PlatformInput, Point,
+    RequestFrameOptions, TouchEvent, TouchId, TouchPhase,
 };
 use gpui_wgpu_ohos::{GpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use raw_window_handle::{
@@ -27,29 +27,41 @@ use raw_window_handle::{
 
 mod dispatcher;
 mod platform;
-mod view;
 mod window;
 
 use crate::components::material::NavigationBarBuilder;
 use crate::fling_guard::FlingGuard;
 use crate::frame_pacer::FramePacer;
 use platform::OhosPlatform;
-use view::Router;
 use window::WindowState;
+
+type AppCallback = fn(&mut App) -> Result<(), String>;
+static APP_CALLBACK: OnceLock<AppCallback> = OnceLock::new();
+
+/// Register the application root before the first XComponent surface arrives.
+pub fn set_app_callback(callback: AppCallback) -> Result<(), &'static str> {
+    APP_CALLBACK
+        .set(callback)
+        .map_err(|_| "OHOS app callback is already registered")
+}
+
+const BASE: u32 = 0x121318;
+const TEXT: u32 = 0xE2E2E9;
+const DEFAULT_DARK_MODE: bool = true;
 
 #[no_mangle]
 pub extern "C" fn gpui_ohos_background_color() -> u32 {
-    display_rgb(view::BASE)
+    display_rgb(BASE)
 }
 
 #[no_mangle]
 pub extern "C" fn gpui_ohos_foreground_color() -> u32 {
-    display_rgb(view::TEXT)
+    display_rgb(TEXT)
 }
 
 #[no_mangle]
 pub extern "C" fn gpui_ohos_bottom_bar_color() -> u32 {
-    display_rgb(NavigationBarBuilder::surface_color(view::DEFAULT_DARK_MODE))
+    display_rgb(NavigationBarBuilder::surface_color(DEFAULT_DARK_MODE))
 }
 
 fn display_rgb(color: u32) -> u32 {
@@ -170,6 +182,9 @@ impl RenderState {
             return Ok(());
         }
 
+        let callback = APP_CALLBACK
+            .get()
+            .ok_or("OHOS application root was not registered")?;
         self.destroy();
         let config = WgpuSurfaceConfig {
             size: size(DevicePixels(width as i32), DevicePixels(height as i32)),
@@ -193,10 +208,8 @@ impl RenderState {
         let launch_error = Rc::new(RefCell::new(None));
         let report_error = launch_error.clone();
         let application = Application::with_platform(platform).run_embedded(move |cx: &mut App| {
-            if let Err(error) =
-                cx.open_window(WindowOptions::default(), |_, cx| cx.new(|_| Router::new()))
-            {
-                *report_error.borrow_mut() = Some(error.to_string());
+            if let Err(error) = callback(cx) {
+                *report_error.borrow_mut() = Some(error);
             }
         });
         if let Some(error) = launch_error.borrow_mut().take() {

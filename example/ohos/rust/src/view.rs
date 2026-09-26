@@ -4,25 +4,25 @@
 //! same code used by the Android/iOS example. This test router only holds the
 //! state these two screens need.
 
-use crate::components::material::NavigationBarBuilder;
 use gpui::{
     div, rgb, Context, Font, FontFallbacks, InteractiveElement, IntoElement, ParentElement, Render,
     StatefulInteractiveElement, Styled, Window,
 };
+use gpui_mobile::components::material::NavigationBarBuilder;
 
 #[rustfmt::skip]
-#[path = "../../example/src/screens/about.rs"]
+#[path = "../../../src/screens/about.rs"]
 mod about;
 
 #[rustfmt::skip]
-#[path = "../../example/src/screens/counter.rs"]
+#[path = "../../../src/screens/counter.rs"]
 mod counter;
 
-pub(super) const BASE: u32 = 0x121318;
-pub(super) const DEFAULT_DARK_MODE: bool = true;
+const BASE: u32 = 0x121318;
+const DEFAULT_DARK_MODE: bool = true;
 const SURFACE0: u32 = 0x1E1F25;
 const SURFACE1: u32 = 0x282A2F;
-pub(super) const TEXT: u32 = 0xE2E2E9;
+const TEXT: u32 = 0xE2E2E9;
 const SUBTEXT: u32 = 0xC4C6D0;
 const BLUE: u32 = 0x4285F4;
 const GREEN: u32 = 0x34A853;
@@ -43,14 +43,14 @@ enum Page {
     About,
 }
 
-pub(super) struct Router {
+pub(crate) struct Router {
     pub(super) tap_count: u32,
     pub(super) dark_mode: bool,
     page: Page,
 }
 
 impl Router {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             tap_count: 0,
             dark_mode: DEFAULT_DARK_MODE,

@@ -1,22 +1,26 @@
 # OHOS GPUI view probe
 
-ArkUI XComponent supplies an `OHNativeWindow`. A minimal OHOS `gpui::Platform`
-opens a GPUI window and renders the existing Counter and About screens from
-`example/src/screens/` through `gpui-pre-wgpu`. A two-tab probe router keeps
-the Counter state while switching screens; the Android/iOS multi-screen router
-is not yet connected.
+ArkUI XComponent supplies an `OHNativeWindow` to the OHOS `gpui::Platform`.
+The example registers its root view before the surface arrives. Its two-tab
+router renders the existing Counter and About screens from `example/src/screens/`
+through `gpui-pre-wgpu` and keeps the Counter state while switching screens.
+The Android/iOS multi-screen router is not yet connected.
 
 ## Build
 
 1. Install the `aarch64-unknown-linux-ohos` Rust target and an OHOS native SDK.
 2. Set `OHOS_SDK_HOME` to the SDK's `native` directory.
-3. Run `./build.ps1` from this directory. The script compiles the Rust library
-   and copies `libgpui_mobile.so` into `entry/libs/arm64-v8a/`.
+3. Run `./build.ps1` from this directory. The script compiles the example Rust
+   static library and copies it into `entry/libs/arm64-v8a/`. CMake links it
+   into `libentry.so`, including the OHOS platform and the example root view.
 4. Copy `build-profile.example.json5` to `build-profile.json5`, then open this
    directory in DevEco Studio and build the `entry` HAP. Configure local
    signing in DevEco Studio to install it on a device. The local
    `build-profile.json5` is ignored by Git; keep signing material outside
    this repository.
+   If this checkout previously built the dynamic `libgpui_mobile.so` probe,
+   run `hvigorw clean` once before rebuilding so the old library is removed
+   from cached HAP contents.
 
 ## Device acceptance
 
@@ -46,6 +50,12 @@ screen or lost count. In landscape, however, the Counter content pushes the
 bottom tab bar off-screen. Wrapping Counter content in a scroll container kept
 the bottom bar visible in a later landscape device check. On the final package,
 Counter → About → Counter worked in landscape and preserved count 1.
+
+After the app root moved out of the platform crate, the signed static-link
+HAP was installed on the same device. Counter +1, About and return preserved
+count 1 in portrait. A landscape rotation kept that count, both tabs worked,
+and a scrolled Counter +1 produced 2. Rotating back to portrait still showed
+2. The HAP contained `libentry.so` without the old platform `.so`.
 
 Overlapping a held finger with an HDC tap exposed a touch-ID collision: both
 sources reported device 0, touch 0. The bridge now cancels the old contact on
