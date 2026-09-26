@@ -72,7 +72,13 @@ impl Render for Router {
             })
             .text_color(rgb(TEXT))
             .child(match self.page {
-                Page::Counter => counter::render(self, cx).into_any_element(),
+                Page::Counter => div()
+                    .id("counter-scroll-container")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .child(counter::render(self, cx))
+                    .into_any_element(),
                 Page::About => div()
                     .id("about-scroll-container")
                     .flex_1()

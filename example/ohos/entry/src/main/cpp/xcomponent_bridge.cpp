@@ -9,7 +9,8 @@
 
 extern "C" bool gpui_ohos_surface_created(void* window, uint32_t width, uint32_t height,
                                             float scale, char* error_buffer, std::size_t error_capacity);
-extern "C" void gpui_ohos_touch(uint32_t phase, float x, float y);
+extern "C" void gpui_ohos_touch(uint32_t phase, int64_t device_id, int32_t native_id,
+                                float x, float y);
 extern "C" void gpui_ohos_surface_destroyed();
 extern "C" uint32_t gpui_ohos_background_color();
 extern "C" uint32_t gpui_ohos_foreground_color();
@@ -83,7 +84,8 @@ void OnTouch(OH_NativeXComponent* component, void* window) {
     OH_NativeXComponent_TouchEvent event{};
     if (OH_NativeXComponent_GetTouchEvent(component, window, &event) ==
             OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
-        gpui_ohos_touch(static_cast<uint32_t>(event.type), event.x, event.y);
+        gpui_ohos_touch(static_cast<uint32_t>(event.type), event.deviceId, event.id,
+                        event.x, event.y);
     }
 }
 

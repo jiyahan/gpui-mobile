@@ -10,6 +10,9 @@ export default class EntryAbility extends UIAbility {
     mainWindow.setWindowLayoutFullScreen(true).catch((error: Error) => {
       console.error(`Failed to enable immersive layout: ${error.message}`);
     });
+    mainWindow.setPreferredOrientation(window.Orientation.AUTO_ROTATION).catch((error: Error) => {
+      console.error(`Failed to enable auto rotation: ${error.message}`);
+    });
     mainWindow.setWindowSystemBarProperties({
       statusBarColor: BACKGROUND_COLOR,
       statusBarContentColor: FOREGROUND_COLOR,

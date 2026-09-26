@@ -6,6 +6,7 @@
 
 use std::{
     cell::RefCell,
+    collections::HashMap,
     ffi::{c_char, c_void},
     panic::{catch_unwind, AssertUnwindSafe},
     ptr::{self, NonNull},
@@ -15,8 +16,8 @@ use std::{
 };
 
 use gpui::{
-    size, App, AppContext, Application, ApplicationHandle, DevicePixels, PlatformInput,
-    RequestFrameOptions, TouchEvent, TouchId, TouchPhase, WindowOptions,
+    size, App, AppContext, Application, ApplicationHandle, DevicePixels, Pixels, PlatformInput,
+    Point, RequestFrameOptions, TouchEvent, TouchId, TouchPhase, WindowOptions,
 };
 use gpui_wgpu_ohos::{GpuContext, WgpuRenderer, WgpuSurfaceConfig};
 use raw_window_handle::{
@@ -102,6 +103,8 @@ enum Command {
     },
     Touch {
         phase: u32,
+        device_id: i64,
+        native_id: i32,
         x: f32,
         y: f32,
     },
@@ -115,7 +118,7 @@ struct RenderState {
     window: Rc<RefCell<WindowState>>,
     application: Option<ApplicationHandle>,
     touch_id: u64,
-    active_touch_id: Option<TouchId>,
+    active_touches: HashMap<(i64, i32), (TouchId, Point<Pixels>)>,
     fling_guard: FlingGuard,
 }
 
@@ -126,7 +129,7 @@ impl RenderState {
             window: Rc::new(RefCell::new(WindowState::new())),
             application: None,
             touch_id: 0,
-            active_touch_id: None,
+            active_touches: HashMap::new(),
             fling_guard: FlingGuard::new(),
         }
     }
@@ -216,7 +219,7 @@ impl RenderState {
         self.window.borrow_mut().request_frame = callback;
     }
 
-    fn touch(&mut self, phase: u32, x: f32, y: f32) {
+    fn touch(&mut self, phase: u32, device_id: i64, native_id: i32, x: f32, y: f32) {
         let phase = match phase {
             0 => TouchPhase::Started,
             1 => TouchPhase::Ended,
@@ -224,26 +227,46 @@ impl RenderState {
             3 => TouchPhase::Cancelled,
             _ => return,
         };
-        let id = if phase == TouchPhase::Started {
+        let key = (device_id, native_id);
+        let scale = self.window.borrow().scale;
+        let position = gpui::point(gpui::px(x / scale), gpui::px(y / scale));
+        let (id, replaced) = if phase == TouchPhase::Started {
             self.touch_id += 1;
             let id = TouchId(self.touch_id);
-            self.active_touch_id = Some(id);
-            id
-        } else if let Some(id) = self.active_touch_id {
-            id
+            (id, self.active_touches.insert(key, (id, position)))
+        } else if let Some((id, last_position)) = self.active_touches.get_mut(&key) {
+            *last_position = position;
+            (*id, None)
         } else {
             return;
         };
-        let scale = self.window.borrow().scale;
         let event = TouchEvent {
             id,
             phase,
-            position: gpui::point(gpui::px(x / scale), gpui::px(y / scale)),
+            position,
             predicted_position: None,
             force: None,
         };
         let mut callback = self.window.borrow_mut().input.take();
         if let Some(callback) = callback.as_mut() {
+            if let Some((old_id, old_position)) = replaced {
+                self.fling_guard.relay(
+                    TouchEvent {
+                        id: old_id,
+                        phase: TouchPhase::Cancelled,
+                        position: old_position,
+                        predicted_position: None,
+                        force: None,
+                    },
+                    || {
+                        self.touch_id += 1;
+                        TouchId(self.touch_id)
+                    },
+                    |event| {
+                        callback(PlatformInput::Touch(event));
+                    },
+                );
+            }
             self.fling_guard.relay(
                 event,
                 || {
@@ -257,13 +280,13 @@ impl RenderState {
         }
         self.window.borrow_mut().input = callback;
         if matches!(phase, TouchPhase::Ended | TouchPhase::Cancelled) {
-            self.active_touch_id = None;
+            self.active_touches.remove(&key);
         }
     }
 
     fn destroy(&mut self) {
         self.application = None;
-        self.active_touch_id = None;
+        self.active_touches.clear();
         self.fling_guard = FlingGuard::new();
         if let Some(mut renderer) = self.window.borrow_mut().renderer.take() {
             renderer.destroy();
@@ -331,7 +354,13 @@ fn sender() -> &'static mpsc::Sender<Command> {
                                     }
                                 }
                             }
-                            Command::Touch { phase, x, y } => state.touch(phase, x, y),
+                            Command::Touch {
+                                phase,
+                                device_id,
+                                native_id,
+                                x,
+                                y,
+                            } => state.touch(phase, device_id, native_id, x, y),
                             Command::Frame(force) => {
                                 state.window.borrow().frame_queued.set(false);
                                 if force {
@@ -410,8 +439,14 @@ pub extern "C" fn gpui_ohos_surface_created(
 
 /// Forward an OHOS touch phase and its XComponent-local physical coordinates.
 #[no_mangle]
-pub extern "C" fn gpui_ohos_touch(phase: u32, x: f32, y: f32) {
-    let _ = sender().send(Command::Touch { phase, x, y });
+pub extern "C" fn gpui_ohos_touch(phase: u32, device_id: i64, native_id: i32, x: f32, y: f32) {
+    let _ = sender().send(Command::Touch {
+        phase,
+        device_id,
+        native_id,
+        x,
+        y,
+    });
 }
 
 /// Synchronously release the GPU surface before ArkUI frees OHNativeWindow.

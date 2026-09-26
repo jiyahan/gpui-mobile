@@ -37,4 +37,19 @@ The window now uses immersive layout with the measured status-bar inset at the
 top. GPUI draws the bottom navigation through the gesture area, without an
 extra safe-area strip. Both tabs respond to taps, and the system bottom-swipe
 gesture still opens the recent-apps view on the tested device.
-The `+50` and `+100` actions and rotation still need device validation.
+On 2026-09-26, `+50` then `+100` produced 150 on the device. Ten cycles of
+`+1` → About → scroll to the footer → immediate Counter switch ended at 10,
+with no missed switch. Sending the app to the home screen and reopening it
+preserved that count. With automatic rotation enabled, the window changed to
+2760×1256 in landscape and back to 1256×2760 in portrait without a blank
+screen or lost count. In landscape, however, the Counter content pushes the
+bottom tab bar off-screen. Wrapping Counter content in a scroll container kept
+the bottom bar visible in a later landscape device check. On the final package,
+Counter → About → Counter worked in landscape and preserved count 1.
+
+Overlapping a held finger with an HDC tap exposed a touch-ID collision: both
+sources reported device 0, touch 0. The bridge now cancels the old contact on
+a duplicate start. In a portrait device retest, the overlapping tap did not
+switch tabs, but after the finger was released, a new About tap succeeded
+without restarting the app. The same overlap scenario has not been retested
+in landscape.
