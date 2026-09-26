@@ -42,7 +42,7 @@ independent units. Do not declare the whole migration complete with blockers.
 | `show_keyboard()`, `show_keyboard_with_type()`, `hide_keyboard()`, `keyboard_height()`, `set_keyboard_height()` | No OHOS keyboard host. | Open, change type, reposition content and dismiss the IME. |
 | `set_text_input_callback()`, `dispatch_text_input()`, `TEXT_INPUT_DIRTY` | Shared hooks exist; no OHOS input bridge. | Chinese/English composition, insertion, deletion, selection and redraw. |
 | `PlatformView`, factory, registry and handle | Shared registry exists; no OHOS native view host. | Create, position, resize, hide and dispose a native view. |
-| OHOS C ABI surface create/destroy, touch and system colors | App root, lifecycle and single-touch probe verified on one device; background and surface detach cancel tracked contacts. Native bridge delivered both contact IDs in a two-finger diagnostic. | Recheck with the shared router; simultaneous independent button activation is limited by the shared GPUI recognizer. |
+| OHOS C ABI surface create/destroy, touch and system colors | App root, lifecycle and single-touch probe verified on one device; background and surface detach cancel tracked contacts. Two independent short taps now activate separate buttons on the same phone. | Recheck with the shared router and other devices; multi-finger pan and pinch remain unsupported. |
 
 Core units, in order: SDK-23 compatibility, separating the example root
 from the OHOS platform, window lifecycle, chrome/safe-area behavior, and Back
@@ -246,14 +246,29 @@ temporary test button was removed from source before the final build. The
 signed final HAP was reinstalled: Counter had no test button, +1 changed 0 to
 1, and About → Counter preserved 1.
 
-A separate two-finger diagnostic showed native DOWN/UP events for contact IDs
-0 and 1, but simultaneous button taps produced only one action. The current
-shared GPUI recognizer ignores an additional contact while one is active, so
-independent simultaneous button activation remains unsupported. Surface
-recreation also changed Counter's background pixel from approximately
+A separate two-finger diagnostic on the previous build showed native DOWN/UP
+events for contact IDs 0 and 1, but simultaneous button taps produced only
+one action because the shared GPUI recognizer ignored the second contact.
+Surface recreation also changed Counter's background pixel from approximately
 `#4B4E57` to the theme's `#121318` on this device. Touch recovery works, but
 the color transition needs a renderer follow-up before lifecycle presentation
 can be considered stable.
 
-**Next gate:** accept touch interruption, then investigate the surface color
-transition and the keyboard/text-input bridge as separate units.
+On 2026-09-27, the shared `gpui-pre 0.3.6` recognizer was patched to track
+additional contacts as independent tap candidates without changing the
+primary contact's pan and long-press behavior. Format checking and 47/47 root
+tests passed; the OHOS Rust release build and signed HAP passed, and the HAP
+was reinstalled on device `2MH0224411027452`. The first manual attempt showed
+Counter 0 → 5; the operator later clarified that they pressed `−` and `+5`,
+not `+1` and `+5`. After resetting, `+1` and `+5` produced 0 → 6. The final
+signed HAP also produced 0 → 6 when `+5` was released first. Holding a finger
+on empty Counter space while another finger tapped About opened About. The
+focused automated test covers both lift orders, a cancelled contact, movement
+beyond tap slop, and a primary pan with a secondary tap. Android arm64 library
+`cargo check --offline` passed. The Android example check could not fetch
+locked `rustls-platform-verifier-android 0.2.0` because this host's TLS reported
+`SEC_E_NO_CREDENTIALS`; iOS cannot be built on this Windows host. Broader
+device consistency remains unverified.
+
+**Next gate:** investigate the surface color transition and the
+keyboard/text-input bridge as separate units.

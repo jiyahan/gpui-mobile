@@ -27,6 +27,8 @@ The Android/iOS multi-screen router is not yet connected.
 - Launch: the Counter screen shows zero, action buttons, and a milestone bar.
 - Touch: `+1`, `+5`, and `Reset to zero` update the count from 0 to 1 to 6 to 0;
   `+10` then `-` update it from 0 to 10 to 9 and cross the first milestone.
+- Two-finger touch: short taps on `+1` and `+5` reach 6 regardless of which
+  finger lifts first; a held finger on empty space does not block a tap on About.
 - Touch interruption: hold a contact while sending the app to Home, then
   release, reopen, and verify a new tap and tab switch still work.
 - Surface interruption: while one contact is down, recreate the XComponent;
@@ -105,6 +107,17 @@ finger was held. After release, +1 and About still worked; the temporary
 test button was removed before the final build. The reinstalled signed HAP
 showed Counter without the button, and +1 → About → Counter preserved 1. A
 separate native event log received both IDs in a two-finger tap, but the
-shared GPUI recognizer only activated one button. Surface recreation also
+previous shared GPUI recognizer only activated one button. Surface recreation also
 changed rendered colors from washed-out gray to the intended dark palette;
 this presentation issue remains open.
+
+On 2026-09-27, the pinned GPUI recognizer was patched for independent
+secondary taps. Root tests passed 47/47 and the signed HAP was installed on
+the same phone. One initial manual attempt gave Counter 0 → 5; the operator
+later clarified that they pressed `−` and `+5`. After resetting, `+1` and
+`+5` gave 0 → 6. The final HAP gave 0 → 6 with `+5` released first. While a
+finger stayed on empty Counter space, a second finger opened About. The
+automated test covers both lift orders, cancellation, movement outside tap
+slop, and pan plus tap. Android arm64 library checking passed; the Android
+example check was blocked by a missing locked crate and this host's TLS
+error, and iOS was not built here.

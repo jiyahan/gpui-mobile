@@ -83,6 +83,9 @@ pub mod packages;
 pub mod platform_view;
 pub mod target_platform;
 
+#[cfg(test)]
+mod touch_tests;
+
 // ── System chrome (status bar / navigation bar) styling ──────────────────────
 
 /// Controls the appearance of the device status bar text and icons.

@@ -128,6 +128,10 @@ uuid = "1"
 [dev-dependencies]
 gpui = { package = "gpui-pre", version = "=0.3.6", default-features = false, features = ["test-support"] }
 
+# Keep the pinned GPUI snapshot while fixing shared mobile touch recognition.
+[patch.crates-io]
+gpui-pre = { path = "vendor/gpui-pre" }
+
 # ── profiles ─────────────────────────────────────────────────────────────────
 
 [profile.release]

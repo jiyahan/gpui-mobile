@@ -30,6 +30,9 @@ objc2 = "0.6"
 android_logger = "0.15"
 android-activity = { version = "0.6", features = ["native-activity"] }
 
+[patch.crates-io]
+gpui-pre = { path = "../vendor/gpui-pre" }
+
 [profile.release]
 opt-level = "z"
 lto = "fat"
